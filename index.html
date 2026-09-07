@@ -36,13 +36,38 @@
   </div>
 </section>
 
+<!-- Section Explicative -->
+<section style="background: var(--soft, #f8f9fa); padding: 20px; border-radius: 12px; margin-bottom: 24px; text-align: center;">
+  <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 12px;">💡 Comment ça marche ?</h2>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; font-size: 13px;">
+    <div style="background: #fff; padding: 12px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+      <span style="font-size: 20px;">1️⃣</span>
+      <p style="margin-top: 4px; font-weight: 600;">Passe ta commande</p>
+      <span style="color: #666; font-size: 11px;">Choisis tes plats et valide ton panier.</span>
+    </div>
+    <div style="background: #fff; padding: 12px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+      <span style="font-size: 20px;">2️⃣</span>
+      <p style="margin-top: 4px; font-weight: 600;">Reçois ton ticket</p>
+      <span style="color: #666; font-size: 11px;">Récupère ton code unique de suivi.</span>
+    </div>
+    <div style="background: #fff; padding: 12px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+      <span style="font-size: 20px;">3️⃣</span>
+      <p style="margin-top: 4px; font-weight: 600;">Suis la préparation</p>
+      <span style="color: #666; font-size: 11px;">Indique si tu viens ou si ton Yango arrive.</span>
+    </div>
+  </div>
+</section>
+
   <main class="menu-page">
     <div class="cat-tabs" id="catTabs">
-      <button class="cat-tab active" data-cat="all">Tout</button>
-      <button class="cat-tab" data-cat="jus">🥤 Jus</button>
-      <button class="cat-tab" data-cat="tacos">🌮 Tacos</button>
-      <button class="cat-tab" data-cat="chawarma">🌯 Chawarma</button>
-    </div>
+  <button class="cat-tab active" data-cat="all">Tous</button>
+  <button class="cat-tab" data-cat="tacos">🌮 Tacos</button>
+  <button class="cat-tab" data-cat="burger">🍔 Burger</button>
+  <button class="cat-tab" data-cat="chawarma">🌯 Chawarma</button>
+  <button class="cat-tab" data-cat="pates">🍝 Pâtes</button>
+  <button class="cat-tab" data-cat="supplements">➕ Suppléments</button>
+  <button class="cat-tab" data-cat="speciaux">⭐ Menus Spéciaux</button>
+</div>
 
     <div class="menu-grid" id="menuGrid">
       <div class="loading">Chargement du menu...</div>

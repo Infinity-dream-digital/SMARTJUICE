@@ -151,49 +151,62 @@
     }
 
     function renderTracking(order) {
-      const statusOrder = ['new', 'preparing', 'ready', 'out', 'completed'];
-      const currentIdx = statusOrder.indexOf(order.status);
+  const statusOrder = ['new', 'preparing', 'ready', 'completed'];
+  const currentIdx = statusOrder.indexOf(order.status);
 
-      const statusMap = { 
-        new: 'Commande reçue', 
-        preparing: 'En préparation', 
-        ready: 'Prête !', 
-        out: 'En cours de retrait / expédition', 
-        completed: 'Terminée' 
-      };
-      
-      $('trackStatus').textContent = statusMap[order.status] || order.status;
+  const statusMap = { 
+    new: 'Commande reçue', 
+    preparing: 'En préparation', 
+    ready: 'Prête !', 
+    completed: 'Transaction terminée — Bon appétit ! 🎉' 
+  };
+  
+  $('trackStatus').textContent = statusMap[order.status] || order.status;
 
-      // Affichage de la Timeline
-      $('timeline').innerHTML = STEPS.map((step, i) => {
-        const done = i <= currentIdx;
-        const active = i === currentIdx && order.status !== 'completed';
-        return `
-          <div class="timeline-step ${done ? 'done' : ''} ${active ? 'active' : ''}">
-            <div class="timeline-icon">${step.icon}</div>
-            <div class="timeline-content">
-              <h3>${step.title}</h3>
-              <p>${step.desc}</p>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      // Détails du ticket de commande
-      const items = Array.isArray(order.items) ? order.items : [];
-      $('orderInfo').innerHTML = `
-        <h3>Détails de la commande</h3>
-        <div class="track-items">
-          ${items.map((i) => `<div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-            <span>${i.qty}× ${i.name}</span>
-            <span>${fmt((i.price || 0) * i.qty)}</span>
-          </div>`).join('')}
+  // Timeline
+  $('timeline').innerHTML = STEPS.map((step, i) => {
+    const done = i <= currentIdx;
+    const active = i === currentIdx;
+    return `
+      <div class="timeline-step ${done ? 'done' : ''} ${active ? 'active' : ''}">
+        <div class="timeline-icon">${step.icon}</div>
+        <div class="timeline-content">
+          <h3>${step.title}</h3>
+          <p>${step.desc}</p>
         </div>
-        <div class="track-total" style="margin-top:12px; font-weight:bold; border-top:1px solid #ddd; padding-top:8px; display:flex; justify-content:space-between;">
-          <span>Total</span>
-          <span>${fmt(order.total || 0)}</span>
-        </div>
-      `;
+      </div>
+    `;
+  }).join('');
+
+  // Mode de livraison (S'affiche EN HAUT des détails)
+  const transportBadge = order.transport_label 
+    ? `<div style="background:#e3f2fd; color:#0d47a1; padding:10px; border-radius:8px; font-weight:bold; text-align:center; margin-bottom:12px;">🛵 Transport : ${order.transport_label}</div>` 
+    : '';
+
+  // Détails de la commande
+  const items = Array.isArray(order.items) ? order.items : [];
+  $('orderInfo').innerHTML = `
+    ${transportBadge}
+    <h3>Détails de la commande</h3>
+    <div class="track-items">
+      ${items.map((i) => `<div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+        <span>${i.qty}× ${i.name}</span>
+        <span>${fmt((i.price || 0) * i.qty)}</span>
+      </div>`).join('')}
+    </div>
+    <div class="track-total" style="margin-top:12px; font-weight:bold; border-top:1px solid #ddd; padding-top:8px; display:flex; justify-content:space-between;">
+      <span>Total</span>
+      <span>${fmt(order.total || 0)}</span>
+    </div>
+  `;
+
+  // Actions de transport (visibles uniquement si 'ready' et pas encore choisi)
+  if (order.status === 'ready' && !order.transport_mode) {
+    $('readyActions').style.display = 'flex';
+  } else {
+    $('readyActions').style.display = 'none';
+  }
+}
 
       // Affichage des options de transport dès que c'est PRÊT
       if (order.status === 'ready' && !order.transport_mode) {
@@ -209,7 +222,7 @@
         $('readyActions').style.display = 'none';
         $('transportChoiceNotice').style.display = 'none';
       }
-    }
+    
 
     // TRANSMISSION DE L'INFO A FIREBASE / ADMIN PANEL
    window.updateTransport = async (mode) => {

@@ -48,11 +48,14 @@
   <form id="menuForm" onsubmit="saveMenuItem(event)" style="display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
     <input type="text" id="itemName" placeholder="Nom du plat / jus" required class="form-group input" style="padding:8px 12px; border:1px solid var(--line); border-radius:8px;">
     <input type="number" id="itemPrice" placeholder="Prix (FCFA)" required style="padding:8px 12px; border:1px solid var(--line); border-radius:8px;">
-    <select id="itemCategory" style="padding:8px 12px; border:1px solid var(--line); border-radius:8px;">
-      <option value="jus">🥤 Jus</option>
-      <option value="tacos">🌮 Tacos</option>
-      <option value="chawarma">🌯 Chawarma</option>
-    </select>
+    <select id="itemCategory" style="padding:10px; border:1px solid var(--line); border-radius:8px;">
+  <option value="tacos">🌮 Tacos</option>
+  <option value="burger">🍔 Burger</option>
+  <option value="chawarma">🌯 Chawarma</option>
+  <option value="pates">🍝 Pâtes</option>
+  <option value="supplements">➕ Suppléments</option>
+  <option value="speciaux">⭐ Menus spéciaux</option>
+</select>
     <input type="url" id="itemImage" placeholder="URL de l'image (Ex: https://...)" required style="padding:8px 12px; border:1px solid var(--line); border-radius:8px;">
     <button type="submit" class="action-btn ready" style="grid-column: 1 / -1;">Ajouter au menu</button>
   </form>
@@ -137,7 +140,8 @@
   if (order.status === 'preparing') buttons = `<button class="action-btn ready" onclick="updateStatus('${order.id}','ready')">C'EST PRÊT</button>`;
   if (order.status === 'ready') buttons = `<button class="action-btn out" onclick="updateStatus('${order.id}','out')">REMIS AU LIVREUR / CLIENT</button>`;
   if (order.status === 'out') buttons = `<button class="action-btn done" onclick="updateStatus('${order.id}','completed')">TERMINÉE</button>`;
-  
+  if (order.status === 'ready') buttons = `<button class="action-btn done" onclick="updateStatus('${order.id}','completed')">REMIS AU CLIENT / LIVREUR</button>`;
+
   // Récupérer le libellé du transport s'il existe
   const transportInfo = order.transport_label || (order.transport_mode === 'yango' ? 'Yango en route' : order.transport_mode === 'self' ? 'Client vient en personne' : null);
 
