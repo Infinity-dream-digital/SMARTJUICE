@@ -150,7 +150,7 @@
       }
     }
 
-    function renderTracking(order) {
+   function renderTracking(order) {
   const statusOrder = ['new', 'preparing', 'ready', 'completed'];
   const currentIdx = statusOrder.indexOf(order.status);
 
@@ -161,68 +161,91 @@
     completed: 'Transaction terminée — Bon appétit ! 🎉' 
   };
   
-  $('trackStatus').textContent = statusMap[order.status] || order.status;
+  if ($('trackStatus')) {
+    $('trackStatus').textContent = statusMap[order.status] || order.status;
+  }
 
-  // Timeline
-  $('timeline').innerHTML = STEPS.map((step, i) => {
-    const done = i <= currentIdx;
-    const active = i === currentIdx;
-    return `
-      <div class="timeline-step ${done ? 'done' : ''} ${active ? 'active' : ''}">
-        <div class="timeline-icon">${step.icon}</div>
-        <div class="timeline-content">
-          <h3>${step.title}</h3>
-          <p>${step.desc}</p>
+  // 1. Timeline
+  if ($('timeline')) {
+    $('timeline').innerHTML = STEPS.map((step, i) => {
+      const done = i <= currentIdx;
+      const active = i === currentIdx;
+      return `
+        <div class="timeline-step ${done ? 'done' : ''} ${active ? 'active' : ''}">
+          <div class="timeline-icon">${step.icon}</div>
+          <div class="timeline-content">
+            <h3>${step.title}</h3>
+            <p>${step.desc}</p>
+          </div>
         </div>
-      </div>
-    `;
-  }).join('');
+      `;
+    }).join('');
+  }
 
-  // Mode de livraison (S'affiche EN HAUT des détails)
+  // 2. Mode de livraison (S'affiche EN HAUT des détails)
   const transportBadge = order.transport_label 
     ? `<div style="background:#e3f2fd; color:#0d47a1; padding:10px; border-radius:8px; font-weight:bold; text-align:center; margin-bottom:12px;">🛵 Transport : ${order.transport_label}</div>` 
     : '';
 
-  // Détails de la commande
+  // 3. Détails de la commande
   const items = Array.isArray(order.items) ? order.items : [];
-  $('orderInfo').innerHTML = `
-    ${transportBadge}
-    <h3>Détails de la commande</h3>
-    <div class="track-items">
-      ${items.map((i) => `<div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-        <span>${i.qty}× ${i.name}</span>
-        <span>${fmt((i.price || 0) * i.qty)}</span>
-      </div>`).join('')}
-    </div>
-    <div class="track-total" style="margin-top:12px; font-weight:bold; border-top:1px solid #ddd; padding-top:8px; display:flex; justify-content:space-between;">
-      <span>Total</span>
-      <span>${fmt(order.total || 0)}</span>
-    </div>
-  `;
+  if ($('orderInfo')) {
+    $('orderInfo').innerHTML = `
+      ${transportBadge}
+      <h3>Détails de la commande</h3>
+      <div class="track-items">
+        ${items.map((i) => `<div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span>${i.qty}× ${i.name}</span>
+          <span>${fmt((i.price || 0) * i.qty)}</span>
+        </div>`).join('')}
+      </div>
+      <div class="track-total" style="margin-top:12px; font-weight:bold; border-top:1px solid #ddd; padding-top:8px; display:flex; justify-content:space-between;">
+        <span>Total</span>
+        <span>${fmt(order.total || 0)}</span>
+      </div>
+    `;
+  }
 
-  // Actions de transport (visibles uniquement si 'ready' et pas encore choisi)
+  // 4. Gestion de l'affichage des boutons de transport
+  const readyActions = $('readyActions');
+  const notice = $('transportChoiceNotice');
+
   if (order.status === 'ready' && !order.transport_mode) {
-    $('readyActions').style.display = 'flex';
+    if (readyActions) readyActions.style.display = 'flex';
+    if (notice) notice.style.display = 'none';
+  } else if (order.transport_mode) {
+    if (readyActions) readyActions.style.display = 'none';
+    if (notice) {
+      notice.style.display = 'block';
+      notice.textContent = order.transport_mode === 'yango' 
+        ? '🚗 Information transmise : Vous avez indiqué qu’un Yango arrive !' 
+        : '🚶 Information transmise : Vous avez indiqué venir chercher la commande vous-même !';
+    }
   } else {
-    $('readyActions').style.display = 'none';
+    if (readyActions) readyActions.style.display = 'none';
+    if (notice) notice.style.display = 'none';
   }
 }
 
-      // Affichage des options de transport dès que c'est PRÊT
-      if (order.status === 'ready' && !order.transport_mode) {
-        $('readyActions').style.display = 'flex';
-        $('transportChoiceNotice').style.display = 'none';
-      } else if (order.transport_mode) {
-        $('readyActions').style.display = 'none';
-        $('transportChoiceNotice').style.display = 'block';
-        $('transportChoiceNotice').textContent = order.transport_mode === 'yango' 
-          ? '🚗 Information transmise : Vous avez indiqué qu’un Yango arrive !' 
-          : '🚶 Information transmise : Vous avez indiqué venir chercher la commande vous-même !';
-      } else {
-        $('readyActions').style.display = 'none';
-        $('transportChoiceNotice').style.display = 'none';
-      }
-    
+// Fonction pour enregistrer le choix de transport
+window.updateTransport = async (mode) => {
+  if (!currentOrderId) {
+    console.error("Aucun identifiant de commande trouvé.");
+    return;
+  }
+
+  const transportText = mode === 'yango' ? 'Yango en route' : 'Client vient en personne';
+
+  try {
+    // Mettre à jour dans Firestore sans changer le statut de la commande
+    await updateDoc(doc(db, "orders", currentOrderId), { 
+      transport_mode: mode,
+      transport_label: transportText
+    });
+  } catch (error) {
+    console.error("Erreur lors de l'enregistrement du transport :", error);
+  }
+};
 
     // TRANSMISSION DE L'INFO A FIREBASE / ADMIN PANEL
    window.updateTransport = async (mode) => {
