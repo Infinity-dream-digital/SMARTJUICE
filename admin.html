@@ -141,11 +141,16 @@
       <div class="order-card-head"><span class="order-code">${order.tracking_code || ''}</span><span class="order-time">${time}</span></div>
       <div class="order-name">${order.client_name || ''}</div>
       <a class="order-phone" href="tel:${order.client_whatsapp}">📞 ${order.client_whatsapp || ''}</a>
+      
+      <!-- AJOUTER LA LIGNE DU TRANSPORT ICI -->
+      ${order.transport_label ? `<div style="background:#fff3cd; color:#856404; padding:6px; border-radius:6px; font-weight:bold; font-size:12px; margin:6px 0;">🛵 ${order.transport_label}</div>` : ''}
+
       <div class="order-items">${items.map((i) => `${i.qty}× ${i.name}`).join('<br>')}</div>
       <div class="order-total">${fmt(order.total || 0)}</div>
       <div class="order-actions">${buttons}</div>
     </article>`;
   }
+  
 
   window.updateStatus = async (id, status) => {
     try {

@@ -19,9 +19,9 @@
         <span class="logo-text"><strong>SMART</strong><span>JUICE</span></span>
       </a>
       <h1>Suivre ma commande</h1>
-      <p>Entres ton code à 4 caractères pour voir l'état de ta commande en temps réel.</p>
+      <p>Entres ton code pour voir l'état de ta commande en temps réel.</p>
       <form onsubmit="lookupCode(event)">
-        <input type="text" class="code-input" id="codeInput" maxlength="4" placeholder="____" autocomplete="off" autofocus />
+        <input type="text" class="code-input" id="codeInput" maxlength="7" placeholder="SJ-____" autocomplete="off" autofocus />
         <button type="submit" class="code-btn">VOIR →</button>
         <div class="code-error" id="codeError"></div>
       </form>
@@ -44,13 +44,23 @@
     </div>
     <div class="timeline" id="timeline"></div>
     <div class="track-order-info" id="orderInfo"></div>
-    <div class="track-ready-actions" id="readyActions" style="display:none">
-      <button class="ready-btn yango" onclick="updateTransport('yango')">🚗 Mon Yango arrive</button>
-      <button class="ready-btn self" onclick="updateTransport('self')">🚶 J'arrive moi-même</button>
+
+    <!-- ACTIONS DE RETRAIT SI C'EST PRÊT -->
+    <div class="track-ready-actions" id="readyActions" style="display:none; flex-direction:column; gap:10px; margin-top:20px;">
+      <p style="text-align:center; font-weight:600; color:#333;">Comment récupères-tu ta commande ?</p>
+      <div style="display:flex; gap:10px; justify-content:center;">
+        <button class="ready-btn yango" onclick="updateTransport('yango')">🚗 Mon Yango arrive</button>
+        <button class="ready-btn self" onclick="updateTransport('self')">🚶 J'arrive moi-même</button>
+      </div>
     </div>
+
+    <!-- MESSAGE DE CONFIRMATION DE RETRAIT -->
+    <div id="transportChoiceNotice" style="display:none; text-align:center; padding:12px; background:#e3f2fd; border-radius:8px; margin-top:15px; font-weight:600; color:#0d47a1;"></div>
+
     <a href="index.html" class="code-back" style="text-align:center;display:block;margin-top:20px">← Retour au menu</a>
   </div>
 
+  <!-- NOT FOUND VIEW -->
   <div class="track-not-found" id="notFoundView" style="display:none">
     <h2>Code introuvable</h2>
     <p>Aucune commande trouvée avec ce code.</p>
@@ -58,11 +68,8 @@
   </div>
 
   <script type="module">
-    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-    const SUPABASE_URL = 'https://zwybiqrmqkiarbelgmzy.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp3eWJpcXJtcWtpYXJiZWxnbXp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxMzU0MzEsImV4cCI6MjEwMzcxMTQzMX0.k25NLgEtYQt-lgzNHwFC2dBc6Ey2c-8VTPzQQe2c6rc';
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    import { db } from './firebase-config.js';
+    import { collection, query, where, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const $ = (id) => document.getElementById(id);
     const fmt = (n) => n.toLocaleString('fr-FR') + ' F';
@@ -70,78 +77,74 @@
     const STEPS = [
       { key: 'new', icon: '✅', title: 'Commande reçue', desc: 'Ta commande est enregistrée' },
       { key: 'preparing', icon: '🔥', title: 'En préparation', desc: 'On cuisine pour toi' },
-      { key: 'ready', icon: '📦', title: 'C\'est PRÊT !', desc: 'Commande ton Yango' },
-      { key: 'out', icon: '🚗', title: 'Remis au livreur', desc: 'En route vers toi' },
-      { key: 'completed', icon: '✅', title: 'Terminée', desc: 'Bon appétit !' },
+      { key: 'ready', icon: '📦', title: 'C\'est PRÊT !', desc: 'Choisis ton mode de récupération' },
+      { key: 'out', icon: '🚗', title: 'En cours d\'expédition', desc: 'En route / Récupération' },
+      { key: 'completed', icon: '🎉', title: 'Terminée', desc: 'Bon appétit !' },
     ];
 
     let currentOrder = null;
+    let currentOrderId = null;
     let lastStatus = null;
 
-    // Check URL for code param
+    // Récupérer le code dans l'URL
     const params = new URLSearchParams(window.location.search);
     const urlCode = params.get('code') || params.get('id');
 
     if (urlCode) {
-      startTracking(urlCode.toUpperCase());
+      startTracking(urlCode.toUpperCase().trim());
     }
 
-    // Auto-uppercase input
+    // Auto-formater le champ
     $('codeInput').addEventListener('input', (e) => {
-      e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      e.target.value = e.target.value.toUpperCase();
     });
 
     window.lookupCode = async (event) => {
       event.preventDefault();
       const code = $('codeInput').value.trim().toUpperCase();
       const error = $('codeError');
-      if (!code || code.length < 4) {
-        error.textContent = 'Entres un code à 4 caractères.';
+      if (!code) {
+        error.textContent = 'Entre un code valide.';
         return;
       }
       error.textContent = '';
       startTracking(code);
     };
 
-    async function startTracking(code) {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('tracking_code', code)
-        .limit(1);
+    function startTracking(code) {
+      const q = query(collection(db, "orders"), where("tracking_code", "==", code));
 
-      if (!data || data.length === 0) {
+      // Écoute en temps réel via Firebase
+      onSnapshot(q, (snapshot) => {
+        if (snapshot.empty) {
+          $('codeEntryView').style.display = 'none';
+          $('trackingView').style.display = 'none';
+          $('notFoundView').style.display = 'block';
+          return;
+        }
+
+        const docSnap = snapshot.docs[0];
+        currentOrderId = docSnap.id;
+        currentOrder = docSnap.data();
+
+        const oldStatus = lastStatus;
+        lastStatus = currentOrder.status;
+
         $('codeEntryView').style.display = 'none';
-        $('notFoundView').style.display = 'block';
-        return;
-      }
+        $('notFoundView').style.display = 'none';
+        $('trackingView').style.display = 'block';
+        $('trackCode').textContent = currentOrder.tracking_code;
 
-      currentOrder = data[0];
-      lastStatus = currentOrder.status;
-      $('codeEntryView').style.display = 'none';
-      $('trackingView').style.display = 'block';
-      $('trackCode').textContent = code;
-      renderTracking(currentOrder);
+        renderTracking(currentOrder);
 
-      // Real-time subscription
-      supabase
-        .channel('order_' + code)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `tracking_code=eq.${code}` }, (payload) => {
-          if (payload.new) {
-            currentOrder = payload.new;
-            const oldStatus = lastStatus;
-            lastStatus = currentOrder.status;
-            renderTracking(currentOrder);
-            if (oldStatus !== currentOrder.status) {
-              playSound();
-              vibrate();
-              notify(currentOrder);
-            }
-          }
-        })
-        .subscribe();
+        // Déclencher alerte/son en cas de changement de statut
+        if (oldStatus && oldStatus !== currentOrder.status) {
+          playSound();
+          vibrate();
+          notify(currentOrder);
+        }
+      });
 
-      // Request notification permission
       if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
       }
@@ -151,11 +154,17 @@
       const statusOrder = ['new', 'preparing', 'ready', 'out', 'completed'];
       const currentIdx = statusOrder.indexOf(order.status);
 
-      // Status text
-      const statusMap = { new: 'Commande reçue', preparing: 'En préparation', ready: 'Prête !', out: 'En livraison', completed: 'Terminée' };
+      const statusMap = { 
+        new: 'Commande reçue', 
+        preparing: 'En préparation', 
+        ready: 'Prête !', 
+        out: 'En cours de retrait / expédition', 
+        completed: 'Terminée' 
+      };
+      
       $('trackStatus').textContent = statusMap[order.status] || order.status;
 
-      // Timeline
+      // Affichage de la Timeline
       $('timeline').innerHTML = STEPS.map((step, i) => {
         const done = i <= currentIdx;
         const active = i === currentIdx && order.status !== 'completed';
@@ -170,28 +179,53 @@
         `;
       }).join('');
 
-      // Order info
-      const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || '[]');
+      // Détails du ticket de commande
+      const items = Array.isArray(order.items) ? order.items : [];
       $('orderInfo').innerHTML = `
         <h3>Détails de la commande</h3>
         <div class="track-items">
-          ${items.map((i) => `<div>${i.qty}× ${i.name} — ${fmt(i.price * i.qty)}</div>`).join('')}
+          ${items.map((i) => `<div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+            <span>${i.qty}× ${i.name}</span>
+            <span>${fmt((i.price || 0) * i.qty)}</span>
+          </div>`).join('')}
         </div>
-        <div class="track-total"><span>Total</span><span>${fmt(order.total)}</span></div>
+        <div class="track-total" style="margin-top:12px; font-weight:bold; border-top:1px solid #ddd; padding-top:8px; display:flex; justify-content:space-between;">
+          <span>Total</span>
+          <span>${fmt(order.total || 0)}</span>
+        </div>
       `;
 
-      // Ready actions
-      if (order.status === 'ready') {
+      // Affichage des options de transport dès que c'est PRÊT
+      if (order.status === 'ready' && !order.transport_mode) {
         $('readyActions').style.display = 'flex';
+        $('transportChoiceNotice').style.display = 'none';
+      } else if (order.transport_mode) {
+        $('readyActions').style.display = 'none';
+        $('transportChoiceNotice').style.display = 'block';
+        $('transportChoiceNotice').textContent = order.transport_mode === 'yango' 
+          ? '🚗 Information transmise : Vous avez indiqué qu’un Yango arrive !' 
+          : '🚶 Information transmise : Vous avez indiqué venir chercher la commande vous-même !';
       } else {
         $('readyActions').style.display = 'none';
+        $('transportChoiceNotice').style.display = 'none';
       }
     }
 
+    // TRANSMISSION DE L'INFO A FIREBASE / ADMIN PANEL
     window.updateTransport = async (mode) => {
-      if (!currentOrder) return;
-      const newStatus = mode === 'yango' ? 'out' : 'completed';
-      await supabase.from('orders').update({ status: newStatus }).eq('id', currentOrder.id);
+      if (!currentOrderId) return;
+
+      const transportText = mode === 'yango' ? 'Yango en route' : 'Client vient en personne';
+
+      try {
+        await updateDoc(doc(db, "orders", currentOrderId), { 
+          transport_mode: mode,
+          transport_label: transportText,
+          status: 'out' // Fait passer au statut suivant
+        });
+      } catch (error) {
+        console.error("Erreur de mise à jour du transport :", error);
+      }
     };
 
     function playSound() {
@@ -216,10 +250,10 @@
 
     function notify(order) {
       if ('Notification' in window && Notification.permission === 'granted') {
-        const statusMap = { new: 'Commande reçue', preparing: 'En préparation', ready: 'C\'est PRÊT !', out: 'En livraison', completed: 'Terminée' };
+        const statusMap = { new: 'Commande reçue', preparing: 'En préparation', ready: 'C\'est PRÊT !', out: 'En livraison / Retrait', completed: 'Terminée' };
         new Notification('SmartJuice 🥤', {
-          body: `Statut: ${statusMap[order.status] || order.status}`,
-          icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🥤</text></svg>',
+          body: `Statut de votre commande: ${statusMap[order.status] || order.status}`,
+          icon: '🥤'
         });
       }
     }

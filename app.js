@@ -157,7 +157,8 @@ window.placeOrder = async (e) => {
   if (!clientName || !clientPhone) return;
 
   // Générer un code de suivi aléatoire à 4 chiffres (ex: SJ-4821)
-  const trackingCode = 'SJ-' + Math.floor(1000 + Math.random() * 9000);
+  // Génère un code unique basé sur les 4 derniers chiffres du temps actuel + 2 chiffres aléatoires (ex: SJ-8921)
+  const trackingCode = 'SJ-' + (Date.now().toString().slice(-3) + Math.floor(Math.random() * 10));
   const totalPrice = cart.reduce((sum, i) => sum + (i.price * i.qty), 0);
 
   const newOrder = {
