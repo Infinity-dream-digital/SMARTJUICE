@@ -212,21 +212,29 @@
     }
 
     // TRANSMISSION DE L'INFO A FIREBASE / ADMIN PANEL
-    window.updateTransport = async (mode) => {
-      if (!currentOrderId) return;
+   window.updateTransport = async (mode) => {
+  if (!currentOrderId) return;
 
-      const transportText = mode === 'yango' ? 'Yango en route' : 'Client vient en personne';
+  const transportText = mode === 'yango' ? 'Yango en route' : 'Client vient en personne';
 
-      try {
-        await updateDoc(doc(db, "orders", currentOrderId), { 
-          transport_mode: mode,
-          transport_label: transportText,
-          status: 'out' // Fait passer au statut suivant
-        });
-      } catch (error) {
-        console.error("Erreur de mise à jour du transport :", error);
-      }
-    };
+  try {
+    // On enregistre le mode de transport SANS changer le statut de la commande !
+    await updateDoc(doc(db, "orders", currentOrderId), { 
+      transport_mode: mode,
+      transport_label: transportText
+    });
+
+    // Mettre à jour l'affichage sur la page du client
+    $('readyActions').style.display = 'none';
+    $('transportChoiceNotice').style.display = 'block';
+    $('transportChoiceNotice').textContent = mode === 'yango' 
+      ? '🚗 Information transmise : Vous avez indiqué qu’un Yango arrive !' 
+      : '🚶 Information transmise : Vous avez indiqué venir chercher la commande vous-même !';
+
+  } catch (error) {
+    console.error("Erreur de mise à jour du transport :", error);
+  }
+};
 
     function playSound() {
       try {

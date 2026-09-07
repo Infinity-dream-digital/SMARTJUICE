@@ -129,27 +129,31 @@
   }
 
   function orderCard(order) {
-    const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || '[]');
-    const time = order.created_at ? new Date(order.created_at.seconds * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
-    let buttons = '';
-    if (order.status === 'new') buttons = `<button class="action-btn prep" onclick="updateStatus('${order.id}','preparing')">ACCEPTER ET PRÉPARER</button>`;
-    if (order.status === 'preparing') buttons = `<button class="action-btn ready" onclick="updateStatus('${order.id}','ready')">C'EST PRÊT</button>`;
-    if (order.status === 'ready') buttons = `<button class="action-btn out" onclick="updateStatus('${order.id}','out')">REMIS AU LIVREUR</button>`;
-    if (order.status === 'out') buttons = `<button class="action-btn done" onclick="updateStatus('${order.id}','completed')">TERMINÉE</button>`;
-    
-    return `<article class="order-card">
-      <div class="order-card-head"><span class="order-code">${order.tracking_code || ''}</span><span class="order-time">${time}</span></div>
-      <div class="order-name">${order.client_name || ''}</div>
-      <a class="order-phone" href="tel:${order.client_whatsapp}">📞 ${order.client_whatsapp || ''}</a>
-      
-      <!-- AJOUTER LA LIGNE DU TRANSPORT ICI -->
-      ${order.transport_label ? `<div style="background:#fff3cd; color:#856404; padding:6px; border-radius:6px; font-weight:bold; font-size:12px; margin:6px 0;">🛵 ${order.transport_label}</div>` : ''}
+  const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || '[]');
+  const time = order.created_at ? new Date(order.created_at.seconds * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+  
+  let buttons = '';
+  if (order.status === 'new') buttons = `<button class="action-btn prep" onclick="updateStatus('${order.id}','preparing')">ACCEPTER ET PRÉPARER</button>`;
+  if (order.status === 'preparing') buttons = `<button class="action-btn ready" onclick="updateStatus('${order.id}','ready')">C'EST PRÊT</button>`;
+  if (order.status === 'ready') buttons = `<button class="action-btn out" onclick="updateStatus('${order.id}','out')">REMIS AU LIVREUR / CLIENT</button>`;
+  if (order.status === 'out') buttons = `<button class="action-btn done" onclick="updateStatus('${order.id}','completed')">TERMINÉE</button>`;
+  
+  // Récupérer le libellé du transport s'il existe
+  const transportInfo = order.transport_label || (order.transport_mode === 'yango' ? 'Yango en route' : order.transport_mode === 'self' ? 'Client vient en personne' : null);
 
-      <div class="order-items">${items.map((i) => `${i.qty}× ${i.name}`).join('<br>')}</div>
-      <div class="order-total">${fmt(order.total || 0)}</div>
-      <div class="order-actions">${buttons}</div>
-    </article>`;
-  }
+  return `<article class="order-card">
+    <div class="order-card-head"><span class="order-code">${order.tracking_code || ''}</span><span class="order-time">${time}</span></div>
+    <div class="order-name">${order.client_name || ''}</div>
+    <a class="order-phone" href="tel:${order.client_whatsapp}">📞 ${order.client_whatsapp || ''}</a>
+    
+    <!-- Badge d'information de livraison -->
+    ${transportInfo ? `<div style="background:#fff3cd; color:#856404; padding:6px 10px; border-radius:6px; font-weight:bold; font-size:12px; margin:8px 0; border:1px solid #ffeeba;">🛵 ${transportInfo}</div>` : ''}
+
+    <div class="order-items">${items.map((i) => `${i.qty}× ${i.name}`).join('<br>')}</div>
+    <div class="order-total">${fmt(order.total || 0)}</div>
+    <div class="order-actions">${buttons}</div>
+  </article>`;
+}
   
 
   window.updateStatus = async (id, status) => {
