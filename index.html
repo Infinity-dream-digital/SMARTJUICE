@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SMARTJUICE — Fast-Food | Dégustez</title>
+  <meta name="description" content="SmartJuice — Jus frais, tacos, chawarma. Commande en ligne et suis ta commande en temps réel." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+  <meta property="og:image" content="https://bolt.new/static/og_default.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://bolt.new/static/og_default.png">
+</head>
+<body>
+
+  <header class="topbar">
+  <a class="logo" href="index.html">
+    <img src="Logo smart.jpg" alt="Logo Smart Juice" class="logo-img">
+    <span class="logo-text"><strong>SMART</strong><span>JUICE</span></span>
+  </a>
+  <a href="suivre.html" class="track-btn"> Suivre ma commande</a>
+</header>
+
+  <section class="hero">
+  <video class="hero-video" autoplay loop muted playsinline>
+    <source src="From Klickpin.com- Steal these beautiful travel bucket list tips that help you get the look without the stress designed to feel inspiring useful a.mp4" type="video/mp4">
+  </video>
+
+  <div class="hero-overlay"></div>
+
+  <div class="hero-content">
+    <h1>Frais. Rapide.<br><span class="hero-accent">Dégustez.</span></h1>
+    <p>Jus pressés, tacos croustillants, chawarma fondants. Commande en 30 secondes, suis en temps réel.</p>
+  </div>
+</section>
+
+  <main class="menu-page">
+    <div class="cat-tabs" id="catTabs">
+      <button class="cat-tab active" data-cat="all">Tout</button>
+      <button class="cat-tab" data-cat="jus">🥤 Jus</button>
+      <button class="cat-tab" data-cat="tacos">🌮 Tacos</button>
+      <button class="cat-tab" data-cat="chawarma">🌯 Chawarma</button>
+    </div>
+
+    <div class="menu-grid" id="menuGrid">
+      <div class="loading">Chargement du menu...</div>
+    </div>
+  </main>
+
+  <!-- CART -->
+  <div class="cart-bar" id="cartBar">
+    <div class="cart-summary" onclick="toggleCart()">
+      <span class="cart-count" id="cartCount">0</span>
+      <span class="cart-label">Mon panier</span>
+      <span class="cart-total" id="cartTotal">0 F</span>
+      <span class="cart-chevron" id="cartChevron">▲</span>
+    </div>
+    <div class="cart-panel" id="cartPanel">
+      <div class="cart-items" id="cartItems">
+        <p class="cart-empty">Votre panier est vide.</p>
+      </div>
+      <form class="checkout-form" onsubmit="placeOrder(event)">
+        <div class="form-group">
+          <label for="clientName">Ton nom *</label>
+          <input type="text" id="clientName" required placeholder="Ex: Kevin" />
+        </div>
+        <div class="form-group">
+          <label for="clientPhone">Ton WhatsApp *</label>
+          <input type="tel" id="clientPhone" required placeholder="07 00 00 00 00" />
+        </div>
+        <div class="checkout-total">
+          <span>Total à payer</span>
+          <strong id="checkoutTotal">0 F</strong>
+        </div>
+        <button type="submit" class="order-btn" id="orderBtn">COMMANDER →</button>
+      </form>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="logo-icon">🥤</span>
+        <span class="logo-text"><strong>SMART</strong><span>JUICE</span></span>
+      </div>
+      <p class="footer-desc">Jus frais, tacos, chawarma. Commande en ligne, suis en temps réel.</p>
+      <p class="footer-company" id="footerCompany" ondblclick="window.location.href='admin.html'">Digital Dream</p>
+      <p class="footer-copy">© 2026 SmartJuice · Tous droits réservés</p>
+    </div>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

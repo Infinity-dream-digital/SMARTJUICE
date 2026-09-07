@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tableau de bord — Agence Prestige Immo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="dash-body">
+  <header class="dash-header">
+    <div class="dash-header-inner">
+      <div class="logo">
+        <span class="logo-mark">PI</span>
+        <span class="logo-text"><strong>Prestige Immo</strong><small>Administration</small></span>
+      </div>
+      <button class="dash-logout" onclick="logout()">Déconnexion</button>
+    </div>
+  </header>
+
+  <main class="dash-main">
+    <h1 class="dash-title">Tableau de bord</h1>
+
+    <div class="dash-stats">
+      <div class="dash-stat"><strong id="statVisites">0</strong><span>Visites aujourd'hui</span></div>
+      <div class="dash-stat"><strong id="statResa">0</strong><span>Réservations actives</span></div>
+      <div class="dash-stat"><strong id="statCA">0 F</strong><span>CA du mois</span></div>
+    </div>
+
+    <div class="dash-tabs">
+      <button class="dash-tab active" onclick="switchTab('visites')">Visites</button>
+      <button class="dash-tab" onclick="switchTab('residences')">Résidences</button>
+    </div>
+
+    <div class="dash-filters">
+      <input type="text" id="searchInput" placeholder="Rechercher par nom ou ticket..." oninput="applyFilters()" />
+      <select id="bienFilter" onchange="applyFilters()">
+        <option value="">Tous les biens</option>
+      </select>
+      <select id="dateFilter" onchange="applyFilters()">
+        <option value="">Toutes les dates</option>
+      </select>
+      <button class="dash-export" onclick="exportCSV()">Exporter CSV ↓</button>
+    </div>
+
+    <div class="dash-table-wrap">
+      <div class="dash-loading" id="loadingMsg">Chargement des réservations...</div>
+
+      <!-- VISITES TABLE -->
+      <table class="dash-table" id="visitesTable" style="display:none">
+        <thead>
+          <tr><th>Ticket</th><th>Bien</th><th>Client</th><th>Téléphone</th><th>Date</th><th>Heure</th><th>Statut</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="visitesBody"></tbody>
+      </table>
+
+      <!-- RESIDENCES TABLE -->
+      <table class="dash-table" id="residencesTable" style="display:none">
+        <thead>
+          <tr><th>Ticket</th><th>Bien</th><th>Client</th><th>Arrivée</th><th>Départ</th><th>Pers.</th><th>Montant</th><th>Statut</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="residencesBody"></tbody>
+      </table>
+
+      <div class="dash-empty" id="emptyMsg" style="display:none">Aucune réservation trouvée.</div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+    const SUPABASE_URL = 'https://zwybiqrmqkiarbelgmzy.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp3eWJpcXJtcWtpYXJiZWxnbXp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxMzU0MzEsImV4cCI6MjEwMzcxMTQzMX0.k25NLgEtYQt-lgzNHwFC2dBc6Ey2c-8VTPzQQe2c6rc';
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // --- AUTH CHECK ---
+    if (sessionStorage.getItem('admin') !== 'true') {
+      window.location.href = 'admin.html';
+    }
+
+    window.logout = () => {
+      sessionStorage.removeItem('admin');
+      window.location.href = 'admin.html';
+    };
+
+    let allResa = [];
+    let currentTab = 'visites';
+
+    // --- REAL-TIME ---
+    supabase
+      .channel('reservations_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => loadResa())
+      .subscribe();
+
+    async function loadResa() {
+      const { data, error } = await supabase
+        .from('reservations')
+        .select('*')
+        .order('date', { ascending: true })
+        .order('heure', { ascending: true });
+
+      if (error) {
+        document.getElementById('loadingMsg').textContent = 'Erreur de chargement.';
+        return;
+      }
+      allResa = data || [];
+      populateFilters();
+      applyFilters();
+      updateStats();
+    }
+
+    function populateFilters() {
+      const bienSelect = document.getElementById('bienFilter');
+      const dateSelect = document.getElementById('dateFilter');
+      const biens = [...new Set(allResa.map((r) => r.bien_titre))].sort();
+      const dates = [...new Set(allResa.map((r) => r.date))].sort();
+      const curBien = bienSelect.value;
+      const curDate = dateSelect.value;
+      bienSelect.innerHTML = '<option value="">Tous les biens</option>' + biens.map((b) => `<option value="${b}">${b}</option>`).join('');
+      dateSelect.innerHTML = '<option value="">Toutes les dates</option>' + dates.map((d) => `<option value="${d}">${new Date(d + 'T00:00:00').toLocaleDateString('fr-FR')}</option>`).join('');
+      bienSelect.value = curBien;
+      dateSelect.value = curDate;
+    }
+
+    window.applyFilters = () => {
+      const search = document.getElementById('searchInput').value.toLowerCase().trim();
+      const bienF = document.getElementById('bienFilter').value;
+      const dateF = document.getElementById('dateFilter').value;
+
+      const filtered = allResa.filter((r) => {
+        const matchSearch = !search || r.nom.toLowerCase().includes(search) || r.ticket_id.toLowerCase().includes(search);
+        const matchBien = !bienF || r.bien_titre === bienF;
+        const matchDate = !dateF || r.date === dateF;
+        return matchSearch && matchBien && matchDate;
+      });
+
+      renderTable(filtered);
+    };
+
+    window.switchTab = (tab) => {
+      currentTab = tab;
+      document.querySelectorAll('.dash-tab').forEach((t) => t.classList.remove('active'));
+      event.target.classList.add('active');
+      applyFilters();
+    };
+
+    function renderTable(data) {
+      const loading = document.getElementById('loadingMsg');
+      const empty = document.getElementById('emptyMsg');
+      const vTable = document.getElementById('visitesTable');
+      const rTable = document.getElementById('residencesTable');
+      const vBody = document.getElementById('visitesBody');
+      const rBody = document.getElementById('residencesBody');
+
+      loading.style.display = 'none';
+      vTable.style.display = 'none';
+      rTable.style.display = 'none';
+      empty.style.display = 'none';
+
+      if (currentTab === 'visites') {
+        const visites = data.filter((r) => r.type === 'visite');
+        if (visites.length === 0) { empty.style.display = 'block'; return; }
+        vTable.style.display = 'table';
+        vBody.innerHTML = visites.map((r) => {
+          const sc = r.statut === 'Confirmé' ? 'status-confirmed' : r.statut === 'Effectuée' ? 'status-done' : 'status-cancelled';
+          return `<tr>
+            <td><strong>${r.ticket_id}</strong></td>
+            <td>${r.bien_titre}</td>
+            <td>${r.nom}</td>
+            <td>${r.telephone}</td>
+            <td>${new Date(r.date + 'T00:00:00').toLocaleDateString('fr-FR')}</td>
+            <td>${r.heure || '—'}</td>
+            <td><select class="status-select ${sc}" onchange="updateStatut('${r.id}', this.value)">
+              <option value="Confirmé" ${r.statut === 'Confirmé' ? 'selected' : ''}>Confirmé</option>
+              <option value="Effectuée" ${r.statut === 'Effectuée' ? 'selected' : ''}>Effectuée</option>
+              <option value="Annulée" ${r.statut === 'Annulée' ? 'selected' : ''}>Annulée</option>
+            </select></td>
+            <td>
+              <button class="dash-action" onclick="viewTicket('${r.ticket_id}','${r.nom}','${r.bien_titre}','${r.date}','${r.heure || ''}','visite')">Voir</button>
+              <button class="dash-action danger" onclick="deleteResa('${r.id}')">Supprimer</button>
+            </td>
+          </tr>`;
+        }).join('');
+      } else {
+        const residences = data.filter((r) => r.type === 'residence');
+        if (residences.length === 0) { empty.style.display = 'block'; return; }
+        rTable.style.display = 'table';
+        rBody.innerHTML = residences.map((r) => {
+          const sc = r.statut === 'Confirmé' ? 'status-confirmed' : r.statut === 'Effectuée' ? 'status-done' : 'status-cancelled';
+          return `<tr>
+            <td><strong>${r.ticket_id}</strong></td>
+            <td>${r.bien_titre}</td>
+            <td>${r.nom}</td>
+            <td>${new Date(r.date + 'T00:00:00').toLocaleDateString('fr-FR')}</td>
+            <td>${r.date_depart ? new Date(r.date_depart + 'T00:00:00').toLocaleDateString('fr-FR') : '—'}</td>
+            <td>${r.personnes || '—'}</td>
+            <td>${r.montant ? r.montant.toLocaleString('fr-FR') + ' F' : '—'}</td>
+            <td><select class="status-select ${sc}" onchange="updateStatut('${r.id}', this.value)">
+              <option value="Confirmé" ${r.statut === 'Confirmé' ? 'selected' : ''}>Confirmé</option>
+              <option value="Effectuée" ${r.statut === 'Effectuée' ? 'selected' : ''}>Effectuée</option>
+              <option value="Annulée" ${r.statut === 'Annulée' ? 'selected' : ''}>Annulée</option>
+            </select></td>
+            <td>
+              <button class="dash-action" onclick="viewTicket('${r.ticket_id}','${r.nom}','${r.bien_titre}','${r.date}','${r.date_depart || ''}','residence')">Voir</button>
+              <button class="dash-action danger" onclick="deleteResa('${r.id}')">Supprimer</button>
+            </td>
+          </tr>`;
+        }).join('');
+      }
+    }
+
+    function updateStats() {
+      const today = new Date().toISOString().slice(0, 10);
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      const ms = monthStart.toISOString().slice(0, 10);
+
+      document.getElementById('statVisites').textContent =
+        allResa.filter((r) => r.type === 'visite' && r.date === today && r.statut !== 'Annulée').length;
+      document.getElementById('statResa').textContent =
+        allResa.filter((r) => r.type === 'residence' && r.statut === 'Confirmé' && r.date >= today).length;
+      const ca = allResa
+        .filter((r) => r.type === 'residence' && r.date >= ms && r.statut !== 'Annulée')
+        .reduce((sum, r) => sum + (r.montant || 0), 0);
+      document.getElementById('statCA').textContent = ca.toLocaleString('fr-FR') + ' F';
+    }
+
+    window.updateStatut = async (id, statut) => {
+      const { error } = await supabase.from('reservations').update({ statut }).eq('id', id);
+      if (error) alert('Erreur lors de la mise à jour.');
+      loadResa();
+    };
+
+    window.deleteResa = async (id) => {
+      if (!confirm('Supprimer définitivement cette réservation ?')) return;
+      const { error } = await supabase.from('reservations').delete().eq('id', id);
+      if (error) alert('Erreur lors de la suppression.');
+      loadResa();
+    };
+
+    window.viewTicket = (ticketId, nom, bienTitre, date, date2, type) => {
+      const qrData = `Prestige Immo - ${type === 'visite' ? 'Visite' : 'Réservation'} ${ticketId} - ${bienTitre} - ${nom} - ${date}${date2 ? ' → ' + date2 : ''}`;
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`;
+      const fmt = (d) => new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+      const typeLabel = type === 'visite' ? 'Visite' : 'Réservation';
+
+      const win = window.open('', '_blank');
+      win.document.write(`<html><head><title>Ticket ${ticketId}</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 40px; background: #F4F6F8; display: flex; justify-content: center; }
+        .tc { max-width: 480px; border: 2px solid #C5A880; border-radius: 18px; overflow: hidden; }
+        .th { background: #0B1D3A; color: #fff; padding: 20px 28px; display: flex; justify-content: space-between; align-items: center; }
+        .tb { padding: 28px; text-align: center; background: #fff; }
+        .tl { font-size: 12px; color: #6B7B95; text-transform: uppercase; margin-bottom: 8px; }
+        .ti { font-size: 30px; font-weight: 800; color: #0B1D3A; margin-bottom: 24px; }
+        .tr { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #E2E8F0; font-size: 14px; }
+        .tr span { color: #6B7B95; }
+        .tr strong { color: #1A2B4C; }
+        .tqr { display: flex; justify-content: center; margin: 20px 0; }
+      </style></head><body>
+      <div class="tc"><div class="th"><div style="font-family:serif;font-size:18px;font-weight:700">Prestige Immo</div><div style="background:#C5A880;color:#0B1D3A;padding:4px 14px;border-radius:50px;font-size:12px;font-weight:600">${typeLabel}</div></div>
+      <div class="tb"><p class="tl">Numéro de ticket</p><h2 class="ti">${ticketId}</h2>
+      <div style="text-align:left;margin-bottom:24px">
+        <div class="tr"><span>Client</span><strong>${nom}</strong></div>
+        <div class="tr"><span>Bien</span><strong>${bienTitre}</strong></div>
+        ${type === 'visite'
+          ? `<div class="tr"><span>Date</span><strong>${fmt(date)}</strong></div><div class="tr"><span>Heure</span><strong>${date2}</strong></div>`
+          : `<div class="tr"><span>Arrivée</span><strong>${fmt(date)}</strong></div><div class="tr"><span>Départ</span><strong>${fmt(date2)}</strong></div>`
+        }
+      </div>
+      <div class="tqr"><img src="${qrUrl}" alt="QR" /></div>
+      </div></div></body></html>`);
+      win.document.close();
+      setTimeout(() => win.print(), 500);
+    };
+
+    window.exportCSV = () => {
+      const headers = currentTab === 'visites'
+        ? ['Ticket', 'Bien', 'Client', 'Téléphone', 'Date', 'Heure', 'Statut']
+        : ['Ticket', 'Bien', 'Client', 'Téléphone', 'Arrivée', 'Départ', 'Personnes', 'Montant', 'Statut'];
+
+      const rows = allResa
+        .filter((r) => r.type === (currentTab === 'visites' ? 'visite' : 'residence'))
+        .map((r) => currentTab === 'visites'
+          ? [r.ticket_id, r.bien_titre, r.nom, r.telephone, r.date, r.heure || '', r.statut]
+          : [r.ticket_id, r.bien_titre, r.nom, r.telephone, r.date, r.date_depart || '', r.personnes || '', r.montant || '', r.statut]
+        );
+
+      const csv = [headers, ...rows].map((row) =>
+        row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')
+      ).join('\n');
+
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `reservations-${currentTab}-prestige-immo.csv`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    };
+
+    loadResa();
+  </script>
+</body>
+</html>

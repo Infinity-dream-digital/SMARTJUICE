@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Suivre ma commande — SMARTJUICE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- CODE ENTRY VIEW -->
+  <div class="code-page" id="codeEntryView">
+    <div class="code-card">
+      <a class="logo" href="index.html">
+        <span class="logo-icon">🥤</span>
+        <span class="logo-text"><strong>SMART</strong><span>JUICE</span></span>
+      </a>
+      <h1>Suivre ma commande</h1>
+      <p>Entres ton code à 4 caractères pour voir l'état de ta commande en temps réel.</p>
+      <form onsubmit="lookupCode(event)">
+        <input type="text" class="code-input" id="codeInput" maxlength="4" placeholder="____" autocomplete="off" autofocus />
+        <button type="submit" class="code-btn">VOIR →</button>
+        <div class="code-error" id="codeError"></div>
+      </form>
+      <a href="index.html" class="code-back">← Retour au menu</a>
+    </div>
+  </div>
+
+  <!-- TRACKING VIEW -->
+  <div class="track-page" id="trackingView" style="display:none">
+    <div class="track-header">
+      <a class="logo" href="index.html">
+        <span class="logo-icon">🥤</span>
+        <span class="logo-text"><strong>SMART</strong><span>JUICE</span></span>
+      </a>
+      <span class="track-code-badge" id="trackCode">—</span>
+    </div>
+    <div class="track-title">
+      <h1>Suivi de commande</h1>
+      <p id="trackStatus">En attente...</p>
+    </div>
+    <div class="timeline" id="timeline"></div>
+    <div class="track-order-info" id="orderInfo"></div>
+    <div class="track-ready-actions" id="readyActions" style="display:none">
+      <button class="ready-btn yango" onclick="updateTransport('yango')">🚗 Mon Yango arrive</button>
+      <button class="ready-btn self" onclick="updateTransport('self')">🚶 J'arrive moi-même</button>
+    </div>
+    <a href="index.html" class="code-back" style="text-align:center;display:block;margin-top:20px">← Retour au menu</a>
+  </div>
+
+  <div class="track-not-found" id="notFoundView" style="display:none">
+    <h2>Code introuvable</h2>
+    <p>Aucune commande trouvée avec ce code.</p>
+    <a href="suivre.html" class="code-back" style="text-align:center;display:block;margin-top:20px">← Réessayer</a>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+    const SUPABASE_URL = 'https://zwybiqrmqkiarbelgmzy.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp3eWJpcXJtcWtpYXJiZWxnbXp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxMzU0MzEsImV4cCI6MjEwMzcxMTQzMX0.k25NLgEtYQt-lgzNHwFC2dBc6Ey2c-8VTPzQQe2c6rc';
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const $ = (id) => document.getElementById(id);
+    const fmt = (n) => n.toLocaleString('fr-FR') + ' F';
+
+    const STEPS = [
+      { key: 'new', icon: '✅', title: 'Commande reçue', desc: 'Ta commande est enregistrée' },
+      { key: 'preparing', icon: '🔥', title: 'En préparation', desc: 'On cuisine pour toi' },
+      { key: 'ready', icon: '📦', title: 'C\'est PRÊT !', desc: 'Commande ton Yango' },
+      { key: 'out', icon: '🚗', title: 'Remis au livreur', desc: 'En route vers toi' },
+      { key: 'completed', icon: '✅', title: 'Terminée', desc: 'Bon appétit !' },
+    ];
+
+    let currentOrder = null;
+    let lastStatus = null;
+
+    // Check URL for code param
+    const params = new URLSearchParams(window.location.search);
+    const urlCode = params.get('code') || params.get('id');
+
+    if (urlCode) {
+      startTracking(urlCode.toUpperCase());
+    }
+
+    // Auto-uppercase input
+    $('codeInput').addEventListener('input', (e) => {
+      e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    });
+
+    window.lookupCode = async (event) => {
+      event.preventDefault();
+      const code = $('codeInput').value.trim().toUpperCase();
+      const error = $('codeError');
+      if (!code || code.length < 4) {
+        error.textContent = 'Entres un code à 4 caractères.';
+        return;
+      }
+      error.textContent = '';
+      startTracking(code);
+    };
+
+    async function startTracking(code) {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('tracking_code', code)
+        .limit(1);
+
+      if (!data || data.length === 0) {
+        $('codeEntryView').style.display = 'none';
+        $('notFoundView').style.display = 'block';
+        return;
+      }
+
+      currentOrder = data[0];
+      lastStatus = currentOrder.status;
+      $('codeEntryView').style.display = 'none';
+      $('trackingView').style.display = 'block';
+      $('trackCode').textContent = code;
+      renderTracking(currentOrder);
+
+      // Real-time subscription
+      supabase
+        .channel('order_' + code)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `tracking_code=eq.${code}` }, (payload) => {
+          if (payload.new) {
+            currentOrder = payload.new;
+            const oldStatus = lastStatus;
+            lastStatus = currentOrder.status;
+            renderTracking(currentOrder);
+            if (oldStatus !== currentOrder.status) {
+              playSound();
+              vibrate();
+              notify(currentOrder);
+            }
+          }
+        })
+        .subscribe();
+
+      // Request notification permission
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+
+    function renderTracking(order) {
+      const statusOrder = ['new', 'preparing', 'ready', 'out', 'completed'];
+      const currentIdx = statusOrder.indexOf(order.status);
+
+      // Status text
+      const statusMap = { new: 'Commande reçue', preparing: 'En préparation', ready: 'Prête !', out: 'En livraison', completed: 'Terminée' };
+      $('trackStatus').textContent = statusMap[order.status] || order.status;
+
+      // Timeline
+      $('timeline').innerHTML = STEPS.map((step, i) => {
+        const done = i <= currentIdx;
+        const active = i === currentIdx && order.status !== 'completed';
+        return `
+          <div class="timeline-step ${done ? 'done' : ''} ${active ? 'active' : ''}">
+            <div class="timeline-icon">${step.icon}</div>
+            <div class="timeline-content">
+              <h3>${step.title}</h3>
+              <p>${step.desc}</p>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Order info
+      const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || '[]');
+      $('orderInfo').innerHTML = `
+        <h3>Détails de la commande</h3>
+        <div class="track-items">
+          ${items.map((i) => `<div>${i.qty}× ${i.name} — ${fmt(i.price * i.qty)}</div>`).join('')}
+        </div>
+        <div class="track-total"><span>Total</span><span>${fmt(order.total)}</span></div>
+      `;
+
+      // Ready actions
+      if (order.status === 'ready') {
+        $('readyActions').style.display = 'flex';
+      } else {
+        $('readyActions').style.display = 'none';
+      }
+    }
+
+    window.updateTransport = async (mode) => {
+      if (!currentOrder) return;
+      const newStatus = mode === 'yango' ? 'out' : 'completed';
+      await supabase.from('orders').update({ status: newStatus }).eq('id', currentOrder.id);
+    };
+
+    function playSound() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.5);
+      } catch (e) {}
+    }
+
+    function vibrate() {
+      if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+    }
+
+    function notify(order) {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        const statusMap = { new: 'Commande reçue', preparing: 'En préparation', ready: 'C\'est PRÊT !', out: 'En livraison', completed: 'Terminée' };
+        new Notification('SmartJuice 🥤', {
+          body: `Statut: ${statusMap[order.status] || order.status}`,
+          icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🥤</text></svg>',
+        });
+      }
+    }
+  </script>
+</body>
+</html>

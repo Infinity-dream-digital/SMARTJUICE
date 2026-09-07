@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reçu — SMARTJUICE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="recu-page">
+  <div class="recu-card">
+    <div class="recu-check">✓</div>
+    <h1>Commande confirmée !</h1>
+    <p class="recu-sub">Note bien ton code de suivi, tu en auras besoin.</p>
+    <div class="recu-code-box">
+      <p class="recu-code-label">Ton code de suivi</p>
+      <p class="recu-code" id="recuCode">----</p>
+    </div>
+    <div class="recu-actions">
+      <button class="code-btn copy-btn" onclick="copyCode()">📋 Copier le code</button>
+      <a class="code-btn" id="trackLink" href="#">Suivre ma commande →</a>
+    </div>
+    <a href="index.html" class="code-back" style="text-align:center;display:block;margin-top:24px">← Retour au menu</a>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code') || '----';
+    document.getElementById('recuCode').textContent = code;
+    document.getElementById('trackLink').href = `suivre.html?code=${code}`;
+
+    window.copyCode = () => {
+      navigator.clipboard.writeText(code).then(() => {
+        const btn = document.querySelector('.copy-btn');
+        const original = btn.textContent;
+        btn.textContent = '✅ Code copié !';
+        setTimeout(() => { btn.textContent = original; }, 2000);
+      }).catch(() => {
+        const input = document.createElement('input');
+        input.value = code;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        const btn = document.querySelector('.copy-btn');
+        btn.textContent = '✅ Code copié !';
+        setTimeout(() => { btn.textContent = '📋 Copier le code'; }, 2000);
+      });
+    };
+  </script>
+</body>
+</html>

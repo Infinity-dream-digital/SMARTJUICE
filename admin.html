@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel — SMARTJUICE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="admin-body">
+  <!-- LOGIN -->
+  <div class="admin-login" id="loginView">
+    <div class="admin-login-card">
+      <a class="logo" href="index.html"><span class="logo-icon">🥤</span><span class="logo-text"><strong>SMART</strong><span>JUICE</span></span></a>
+      <h1>Panel SMART JUICE</h1>
+      <p>Entre le PIN pour gérer les commandes.</p>
+      <form onsubmit="login(event)">
+        <div class="form-group"><input type="password" id="adminPin" maxlength="4" placeholder="PIN" required autocomplete="off" autofocus /></div>
+        <div class="code-error" id="loginError"></div>
+        <button type="submit" class="code-btn">ENTRER →</button>
+      </form>
+      <a href="index.html" class="code-back">← Retour au site</a>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboardView" style="display:none">
+    <header class="dash-header">
+      <a class="logo" href="index.html"><span class="logo-icon">🥤</span><span class="logo-text"><strong>SMART</strong><span>JUICE</span></span></a>
+      <button class="dash-logout" onclick="logout()">Déconnexion</button>
+    </header>
+    <main class="dash-main">
+      <h1 class="dash-title">Commandes en direct</h1>
+      <div class="dash-columns">
+        <section class="dash-col new"><div class="dash-col-head"><h3>Nouvelles</h3><span class="dash-col-count" id="newCount">0</span></div><div id="newOrders"><div class="dash-loading">Chargement...</div></div></section>
+        <section class="dash-col prep"><div class="dash-col-head"><h3>En préparation</h3><span class="dash-col-count" id="prepCount">0</span></div><div id="prepOrders"></div></section>
+        <section class="dash-col ready"><div class="dash-col-head"><h3>Prêtes</h3><span class="dash-col-count" id="readyCount">0</span></div><div id="readyOrders"></div></section>
+      </div>
+    </main>
+  </div>
+
+  <section class="dash-col" style="margin-top:24px;">
+  <div class="dash-col-head">
+    <h3>Gestion du Menu</h3>
+  </div>
+  <form id="menuForm" onsubmit="saveMenuItem(event)" style="display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+    <input type="text" id="itemName" placeholder="Nom du plat / jus" required class="form-group input" style="padding:8px 12px; border:1px solid var(--line); border-radius:8px;">
+    <input type="number" id="itemPrice" placeholder="Prix (FCFA)" required style="padding:8px 12px; border:1px solid var(--line); border-radius:8px;">
+    <select id="itemCategory" style="padding:8px 12px; border:1px solid var(--line); border-radius:8px;">
+      <option value="jus">🥤 Jus</option>
+      <option value="tacos">🌮 Tacos</option>
+      <option value="chawarma">🌯 Chawarma</option>
+    </select>
+    <input type="url" id="itemImage" placeholder="URL de l'image (Ex: https://...)" required style="padding:8px 12px; border:1px solid var(--line); border-radius:8px;">
+    <button type="submit" class="action-btn ready" style="grid-column: 1 / -1;">Ajouter au menu</button>
+  </form>
+
+  <div id="adminMenuList" style="margin-top:20px; display:grid; gap:8px;"></div>
+</section>
+
+  <script type="module">
+  import { db } from './firebase-config.js';
+  import { collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+  const ADMIN_PIN = '2026';
+  let orders = [];
+  let audioContext = null;
+
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => n.toLocaleString('fr-FR') + ' F';
+
+  // --- GESTION CONNEXION / DÉCONNEXION ---
+  window.login = (event) => {
+    event.preventDefault();
+    if ($('adminPin').value === ADMIN_PIN) {
+      sessionStorage.setItem('smartjuice_admin', 'true');
+      showDashboard();
+    } else {
+      $('loginError').textContent = 'PIN incorrect.';
+      $('adminPin').value = '';
+    }
+  };
+
+  window.logout = () => {
+    sessionStorage.removeItem('smartjuice_admin');
+    window.location.reload();
+  };
+
+  function showDashboard() {
+    $('loginView').style.display = 'none';
+    $('dashboardView').style.display = 'block';
+    listenOrders();
+    listenAdminMenu();
+  }
+
+  if (sessionStorage.getItem('smartjuice_admin') === 'true') showDashboard();
+
+  // --- 1. GESTION DES COMMANDES (FIREBASE) ---
+  function listenOrders() {
+    const q = query(collection(db, "orders"), orderBy("created_at", "desc"));
+    
+    onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          playAlert();
+        }
+      });
+
+      orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      renderOrders();
+    });
+  }
+
+  function renderOrders() {
+    const groups = { new: [], preparing: [], ready: [] };
+    orders.forEach((order) => {
+      if (groups[order.status]) groups[order.status].push(order);
+    });
+
+    if ($('newCount')) $('newCount').textContent = groups.new.length;
+    if ($('prepCount')) $('prepCount').textContent = groups.preparing.length;
+    if ($('readyCount')) $('readyCount').textContent = groups.ready.length;
+    
+    if ($('newOrders')) $('newOrders').innerHTML = groups.new.length ? groups.new.map(orderCard).join('') : '<div class="dash-empty">Aucune nouvelle commande</div>';
+    if ($('prepOrders')) $('prepOrders').innerHTML = groups.preparing.length ? groups.preparing.map(orderCard).join('') : '<div class="dash-empty">Rien en préparation</div>';
+    if ($('readyOrders')) $('readyOrders').innerHTML = groups.ready.length ? groups.ready.map(orderCard).join('') : '<div class="dash-empty">Aucune commande prête</div>';
+  }
+
+  function orderCard(order) {
+    const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items || '[]');
+    const time = order.created_at ? new Date(order.created_at.seconds * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+    let buttons = '';
+    if (order.status === 'new') buttons = `<button class="action-btn prep" onclick="updateStatus('${order.id}','preparing')">ACCEPTER ET PRÉPARER</button>`;
+    if (order.status === 'preparing') buttons = `<button class="action-btn ready" onclick="updateStatus('${order.id}','ready')">C'EST PRÊT</button>`;
+    if (order.status === 'ready') buttons = `<button class="action-btn out" onclick="updateStatus('${order.id}','out')">REMIS AU LIVREUR</button>`;
+    if (order.status === 'out') buttons = `<button class="action-btn done" onclick="updateStatus('${order.id}','completed')">TERMINÉE</button>`;
+    
+    return `<article class="order-card">
+      <div class="order-card-head"><span class="order-code">${order.tracking_code || ''}</span><span class="order-time">${time}</span></div>
+      <div class="order-name">${order.client_name || ''}</div>
+      <a class="order-phone" href="tel:${order.client_whatsapp}">📞 ${order.client_whatsapp || ''}</a>
+      <div class="order-items">${items.map((i) => `${i.qty}× ${i.name}`).join('<br>')}</div>
+      <div class="order-total">${fmt(order.total || 0)}</div>
+      <div class="order-actions">${buttons}</div>
+    </article>`;
+  }
+
+  window.updateStatus = async (id, status) => {
+    try {
+      await updateDoc(doc(db, "orders", id), { status });
+    } catch (e) {
+      console.error("Erreur de mise à jour du statut :", e);
+    }
+  };
+
+  function playAlert() {
+    try {
+      audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
+      const playTone = (delay) => {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.connect(gain); gain.connect(audioContext.destination);
+        osc.frequency.value = 700;
+        gain.gain.setValueAtTime(.35, audioContext.currentTime + delay);
+        gain.gain.exponentialRampToValueAtTime(.01, audioContext.currentTime + delay + .35);
+        osc.start(audioContext.currentTime + delay); osc.stop(audioContext.currentTime + delay + .35);
+      };
+      playTone(0); playTone(.5); playTone(1);
+    } catch (e) {}
+  }
+
+  // --- 2. GESTION DU MENU (AJOUT / RETRANCHEMENT) ---
+  window.saveMenuItem = async (e) => {
+    e.preventDefault();
+    const newItem = {
+      name: $('itemName').value,
+      price: Number($('itemPrice').value),
+      category: $('itemCategory').value,
+      image: $('itemImage').value,
+      available: true,
+      createdAt: new Date()
+    };
+
+    try {
+      await addDoc(collection(db, "menu"), newItem);
+      $('menuForm').reset();
+    } catch (error) {
+      console.error("Erreur lors de l'ajout du menu :", error);
+    }
+  };
+
+  window.deleteMenuItem = async (id) => {
+    if (confirm("Voulez-vous vraiment retrancher ce plat ?")) {
+      try {
+        await deleteDoc(doc(db, "menu", id));
+      } catch (error) {
+        console.error("Erreur de suppression du menu :", error);
+      }
+    }
+  };
+
+  function listenAdminMenu() {
+    const q = query(collection(db, "menu"), orderBy("createdAt", "desc"));
+    
+    onSnapshot(q, (snapshot) => {
+      const container = $('adminMenuList');
+      if (!container) return;
+      if (snapshot.empty) {
+        container.innerHTML = '<p class="dash-empty">Aucun plat dans le menu.</p>';
+        return;
+      }
+
+      container.innerHTML = snapshot.docs.map(doc => {
+        const item = doc.data();
+        return `
+          <div style="display:flex; align-items:center; justify-content:space-between; background:var(--soft); padding:10px 14px; border-radius:8px; margin-top:8px;">
+            <span><strong>${item.name}</strong> (${item.category}) - ${item.price} F</span>
+            <button onclick="deleteMenuItem('${doc.id}')" style="background:var(--red); color:#fff; border:none; padding:6px 12px; border-radius:6px; cursor:pointer;">Retrancher</button>
+          </div>
+        `;
+      }).join('');
+    });
+  }
+</script>
+</body>
+</html>

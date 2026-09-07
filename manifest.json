@@ -1,0 +1,10 @@
+{
+  "name": "SMARTJUICE - Fast-Food",
+  "short_name": "SMARTJUICE",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#FFF8F0",
+  "theme_color": "#FF7A00",
+  "description": "Jus frais, tacos et chawarma. Commande et suivi en temps réel.",
+  "icons": []
+}
